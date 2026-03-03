@@ -63,6 +63,7 @@ kalite/static-libraries/docs
 # switching on a venv
 .venv
 venv/
+kalite_env/
 
 # Ignore built javascript files
 /kalite/*/static/js/*/bundles
