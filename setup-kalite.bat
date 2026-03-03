@@ -275,9 +275,25 @@ echo.
 :: -----------------------------------------------------------
 echo [Step 4/9] Installing Node.js dependencies...
 
-call npm install 2>nul
+:: Clean any corrupted node_modules from a previous failed run
+if exist "%INSTALL_DIR%\node_modules" (
+    if not exist "%INSTALL_DIR%\node_modules\browserify" (
+        echo   Removing incomplete node_modules...
+        rmdir /s /q "%INSTALL_DIR%\node_modules"
+    )
+)
+
+echo   Running npm install (this may take a few minutes)...
+call npm install
 if !errorlevel! neq 0 (
-    echo   npm install had issues, continuing...
+    echo   npm install failed. Retrying...
+    call npm install --force
+)
+
+:: Verify critical module exists
+if not exist "%INSTALL_DIR%\node_modules\browserify" (
+    echo   ERROR: browserify not installed. Trying direct install...
+    call npm install browserify factor-bundle minifyify
 )
 
 :: Fix jquery-sparkline (dist/jquery.sparkline.js is missing)
