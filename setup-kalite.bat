@@ -2,12 +2,92 @@
 setlocal enabledelayedexpansion
 
 :: ============================================================
-:: KingsCourt KA Lite - One-Click Installer
+:: KingsCourt KA Lite - Installer / Launcher
 :: ============================================================
-:: This script sets up KA Lite offline learning platform.
-:: Prerequisites: Python 2.7, Node.js, Git
+:: Usage:
+::   setup-kalite.bat              First-time install + start
+::   setup-kalite.bat start        Start the server
+::   setup-kalite.bat stop         Stop the server
+::   setup-kalite.bat status       Check server status
 :: ============================================================
 
+set INSTALL_DIR=%USERPROFILE%\kingscourt-ka
+set KALITE_HOME=%USERPROFILE%\.kalite
+
+:: -----------------------------------------------------------
+:: Handle start / stop / status commands
+:: -----------------------------------------------------------
+if "%1"=="start" goto :cmd_start
+if "%1"=="stop" goto :cmd_stop
+if "%1"=="status" goto :cmd_status
+
+:: If already installed, ask what to do
+if exist "%INSTALL_DIR%\kalite_env\Scripts\activate.bat" (
+    if exist "%KALITE_HOME%\database\content_khan_en.sqlite" (
+        echo.
+        echo  KA Lite is already installed.
+        echo.
+        echo  [1] Start server
+        echo  [2] Stop server
+        echo  [3] Reinstall
+        echo  [4] Exit
+        echo.
+        set /p CHOICE="  Choose [1-4]: "
+        if "!CHOICE!"=="1" goto :cmd_start
+        if "!CHOICE!"=="2" goto :cmd_stop
+        if "!CHOICE!"=="3" goto :install
+        exit /b 0
+    )
+)
+
+goto :install
+
+:: -----------------------------------------------------------
+:: START
+:: -----------------------------------------------------------
+:cmd_start
+title KA Lite Server
+color 0A
+cd /d "%INSTALL_DIR%"
+call kalite_env\Scripts\activate.bat
+kalite start
+echo.
+echo  KA Lite is running at http://127.0.0.1:8008/
+echo.
+echo  Login credentials:
+echo    Admin:   admin / admin
+echo    Coach:   coach / coach
+echo    Student: student / student
+echo.
+start http://127.0.0.1:8008/
+pause
+exit /b 0
+
+:: -----------------------------------------------------------
+:: STOP
+:: -----------------------------------------------------------
+:cmd_stop
+cd /d "%INSTALL_DIR%"
+call kalite_env\Scripts\activate.bat
+kalite stop
+echo  KA Lite server stopped.
+pause
+exit /b 0
+
+:: -----------------------------------------------------------
+:: STATUS
+:: -----------------------------------------------------------
+:cmd_status
+cd /d "%INSTALL_DIR%"
+call kalite_env\Scripts\activate.bat
+kalite status
+pause
+exit /b 0
+
+:: -----------------------------------------------------------
+:: INSTALL
+:: -----------------------------------------------------------
+:install
 title KingsCourt KA Lite Installer
 color 0A
 
@@ -75,9 +155,6 @@ echo.
 :: -----------------------------------------------------------
 :: Step 1: Clone the repository
 :: -----------------------------------------------------------
-set INSTALL_DIR=%USERPROFILE%\kingscourt-ka
-set KALITE_HOME=%USERPROFILE%\.kalite
-
 echo [Step 1/9] Cloning repository to %INSTALL_DIR%...
 
 if exist "%INSTALL_DIR%" (
@@ -195,8 +272,6 @@ echo.
 :: -----------------------------------------------------------
 echo [Step 5/9] Initializing KA Lite...
 
-set KALITE_HOME=%USERPROFILE%\.kalite
-
 :: Run setup/migrate
 kalite manage setup --noinput 2>nul
 if %errorlevel% neq 0 (
@@ -266,11 +341,6 @@ print('  Facility and groups ready')
 
 echo   [OK] Accounts created
 echo.
-echo   Default accounts:
-echo     Admin:   admin / admin
-echo     Coach:   coach / coach
-echo     Student: student / student
-echo.
 
 :: -----------------------------------------------------------
 :: Step 9: Register device and start server
@@ -296,8 +366,11 @@ echo     Admin:   admin / admin
 echo     Coach:   coach / coach
 echo     Student: student / student
 echo.
-echo   To stop:  kalite stop
-echo   To start: kalite start
+echo   Next time, use:
+echo     setup-kalite.bat start
+echo     setup-kalite.bat stop
+echo     setup-kalite.bat status
+echo   Or just double-click to get the menu.
 echo.
 echo   Content includes 2,740 exercises across:
 echo     Math, Science, Economics, Arts,
