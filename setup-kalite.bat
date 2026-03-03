@@ -249,6 +249,8 @@ if not exist "%INSTALL_DIR%\kalite_env" (
 
 :: Activate venv
 call kalite_env\Scripts\activate.bat
+:: Re-enable delayed expansion (activate.bat can break it)
+setlocal enabledelayedexpansion
 
 echo   [OK] Virtual environment ready
 echo.
@@ -273,73 +275,75 @@ echo.
 :: -----------------------------------------------------------
 :: Step 4: Install Node.js dependencies and build JS bundles
 :: -----------------------------------------------------------
-echo [Step 4/9] Installing Node.js dependencies...
-
-:: Clean any corrupted node_modules from a previous failed run
-if exist "%INSTALL_DIR%\node_modules" (
-    if not exist "%INSTALL_DIR%\node_modules\browserify" (
-        echo   Removing incomplete node_modules...
-        rmdir /s /q "%INSTALL_DIR%\node_modules"
+:: Check if bundles are already built (bundle_common.js > 0 bytes)
+set BUNDLES_DIR=%INSTALL_DIR%\kalite\distributed\static\js\distributed\bundles
+set BUNDLES_DONE=0
+if exist "%BUNDLES_DIR%\bundle_common.js" (
+    for %%A in ("%BUNDLES_DIR%\bundle_common.js") do (
+        if %%~zA gtr 1000 set BUNDLES_DONE=1
     )
 )
 
-echo   Running npm install (this may take a few minutes)...
-call npm install
-if !errorlevel! neq 0 (
-    echo   npm install failed. Retrying...
-    call npm install --force
-)
+if !BUNDLES_DONE! equ 1 (
+    echo [Step 4/9] JS bundles already built. Skipping.
+) else (
+    echo [Step 4/9] Installing Node.js dependencies and building JS...
 
-:: Verify critical module exists
-if not exist "%INSTALL_DIR%\node_modules\browserify" (
-    echo   ERROR: browserify not installed. Trying direct install...
-    call npm install browserify factor-bundle minifyify
-)
-
-:: Fix jquery-sparkline (dist/jquery.sparkline.js is missing)
-echo   Fixing jquery-sparkline build...
-set SPARKLINE_DIR=%INSTALL_DIR%\node_modules\jquery-sparkline
-if exist "%SPARKLINE_DIR%\src\header.js" (
-    if not exist "%SPARKLINE_DIR%\dist" mkdir "%SPARKLINE_DIR%\dist"
-
-    :: Concatenate source files in correct build order
-    type nul > "%SPARKLINE_DIR%\dist\jquery.sparkline.js"
-    for %%f in (
-        header.js
-        defaults.js
-        utils.js
-        simpledraw.js
-        rangemap.js
-        interact.js
-        base.js
-        chart-line.js
-        chart-bar.js
-        chart-tristate.js
-        chart-discrete.js
-        chart-bullet.js
-        chart-pie.js
-        chart-box.js
-        vcanvas-base.js
-        vcanvas-canvas.js
-        vcanvas-vml.js
-        footer.js
-    ) do (
-        if exist "%SPARKLINE_DIR%\src\%%f" (
-            type "%SPARKLINE_DIR%\src\%%f" >> "%SPARKLINE_DIR%\dist\jquery.sparkline.js"
+    :: Clean incomplete node_modules
+    if exist "%INSTALL_DIR%\node_modules" (
+        if not exist "%INSTALL_DIR%\node_modules\browserify" (
+            echo   Removing incomplete node_modules...
+            rmdir /s /q "%INSTALL_DIR%\node_modules"
         )
     )
-    echo   [OK] jquery-sparkline built
-)
 
-:: Build JS bundles
-echo   Building JS bundles...
-node build.js --debug
-if !errorlevel! neq 0 (
-    echo ERROR: JS bundle build failed.
-    pause
-    exit /b 1
+    :: npm install
+    if not exist "%INSTALL_DIR%\node_modules\browserify" (
+        echo   Running npm install (this may take a few minutes)...
+        call npm install
+        if !errorlevel! neq 0 (
+            echo   npm install failed. Retrying with --force...
+            call npm install --force
+        )
+    ) else (
+        echo   node_modules already complete.
+    )
+
+    :: Verify critical module
+    if not exist "%INSTALL_DIR%\node_modules\browserify" (
+        echo   ERROR: browserify not installed. Trying direct install...
+        call npm install browserify factor-bundle minifyify
+    )
+
+    :: Fix jquery-sparkline
+    echo   Fixing jquery-sparkline build...
+    set SPARKLINE_DIR=%INSTALL_DIR%\node_modules\jquery-sparkline
+    if exist "!SPARKLINE_DIR!\src\header.js" (
+        if not exist "!SPARKLINE_DIR!\dist" mkdir "!SPARKLINE_DIR!\dist"
+        type nul > "!SPARKLINE_DIR!\dist\jquery.sparkline.js"
+        for %%f in (
+            header.js defaults.js utils.js simpledraw.js rangemap.js
+            interact.js base.js chart-line.js chart-bar.js chart-tristate.js
+            chart-discrete.js chart-bullet.js chart-pie.js chart-box.js
+            vcanvas-base.js vcanvas-canvas.js vcanvas-vml.js footer.js
+        ) do (
+            if exist "!SPARKLINE_DIR!\src\%%f" (
+                type "!SPARKLINE_DIR!\src\%%f" >> "!SPARKLINE_DIR!\dist\jquery.sparkline.js"
+            )
+        )
+        echo   [OK] jquery-sparkline built
+    )
+
+    :: Build JS bundles
+    echo   Building JS bundles...
+    node build.js --debug
+    if !errorlevel! neq 0 (
+        echo ERROR: JS bundle build failed.
+        pause
+        exit /b 1
+    )
 )
-echo   [OK] JS bundles built
+echo   [OK] JS bundles ready
 echo.
 
 :: -----------------------------------------------------------
