@@ -225,7 +225,8 @@ else:
                 "from the source distribution, use setup.py install --static\n\n"
                 "ENTER to continue or CTRL+C to cancel\n\n"
             ).format(STATIC_DIST_PACKAGES))
-            sys.stdin.readline()
+            if sys.stdin.isatty():
+                sys.stdin.readline()
             shutil.rmtree(STATIC_DIST_PACKAGES)
             os.mkdir(STATIC_DIST_PACKAGES)
             open(os.path.join(STATIC_DIST_PACKAGES, '__init__.py'), "w").write("\n")

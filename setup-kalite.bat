@@ -266,8 +266,8 @@ if !errorlevel! neq 0 (
     pip install --no-deps -r requirements.txt
 )
 
-:: Install KA Lite itself
-python setup.py install 2>nul || pip install -e .
+:: Install KA Lite itself (use pip -e to avoid setup.py interactive prompt)
+pip install -e .
 
 echo   [OK] Python dependencies installed
 echo.
