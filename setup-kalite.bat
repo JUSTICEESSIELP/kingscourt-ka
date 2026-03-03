@@ -52,13 +52,25 @@ color 0A
 cd /d "%INSTALL_DIR%"
 call kalite_env\Scripts\activate.bat
 kalite start
+:: Detect LAN IP
+set LAN_IP=
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4 Address"') do (
+    for /f "tokens=1" %%b in ("%%a") do (
+        echo %%b | findstr /b "127." >nul
+        if errorlevel 1 (
+            if not defined LAN_IP set "LAN_IP=%%b"
+        )
+    )
+)
+if not defined LAN_IP set "LAN_IP=127.0.0.1"
 echo.
-echo  KA Lite is running at http://127.0.0.1:8008/
+echo  KA Lite is running!
 echo.
-echo  Login credentials:
-echo    Admin:   admin / admin
-echo    Coach:   coach / coach
-echo    Student: student / student
+echo  Admin:    http://127.0.0.1:8008/
+echo  Students: http://!LAN_IP!:8008/
+echo.
+echo  Tell students to open the URL above
+echo  in any browser on the school WiFi.
 echo.
 start http://127.0.0.1:8008/
 pause
@@ -429,6 +441,19 @@ kalite manage register --unregistered 2>nul
 :: Start the server
 kalite start
 
+:: Detect LAN IP address for student access
+set LAN_IP=
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4 Address"') do (
+    for /f "tokens=1" %%b in ("%%a") do (
+        :: Skip 127.x.x.x loopback
+        echo %%b | findstr /b "127." >nul
+        if errorlevel 1 (
+            if not defined LAN_IP set "LAN_IP=%%b"
+        )
+    )
+)
+if not defined LAN_IP set "LAN_IP=127.0.0.1"
+
 :: Clean up downloaded installers
 if exist "%DOWNLOADS%" rmdir /s /q "%DOWNLOADS%"
 
@@ -437,19 +462,25 @@ echo  ========================================
 echo   Installation Complete!
 echo  ========================================
 echo.
-echo   KA Lite is running at:
+echo   KA Lite is running!
+echo.
+echo   Admin access (this computer):
 echo     http://127.0.0.1:8008/
+echo.
+echo   ----------------------------------------
+echo   STUDENTS: Open this URL in any browser
+echo   on any device connected to the WiFi:
+echo.
+echo     http://!LAN_IP!:8008/
+echo.
+echo   ----------------------------------------
 echo.
 echo   Login credentials:
 echo     Admin:   admin / admin
 echo     Coach:   coach / coach
 echo     Student: student / student
 echo.
-echo   Next time, use:
-echo     setup-kalite.bat start
-echo     setup-kalite.bat stop
-echo     setup-kalite.bat status
-echo   Or just double-click to get the menu.
+echo   Next time, just double-click this file.
 echo.
 echo   Content includes 2,740 exercises across:
 echo     Math, Science, Economics, Arts,
