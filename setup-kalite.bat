@@ -14,6 +14,7 @@ setlocal enabledelayedexpansion
 set INSTALL_DIR=%USERPROFILE%\kingscourt-ka
 set KALITE_HOME=%USERPROFILE%\.kalite
 set DOWNLOADS=%TEMP%\kalite-prereqs
+set PY27=C:\Python27\python.exe
 
 :: -----------------------------------------------------------
 :: Handle start / stop / status commands
@@ -120,7 +121,7 @@ echo.
 
 :: ----- GIT -----
 where git >nul 2>&1
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo   Git not found. Downloading Git installer...
     echo   This may take a few minutes...
     powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.1/Git-2.43.0-64-bit.exe' -OutFile '%DOWNLOADS%\git-installer.exe' }"
@@ -131,38 +132,18 @@ if %errorlevel% neq 0 (
     )
     echo   Installing Git silently...
     "%DOWNLOADS%\git-installer.exe" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS="icons,ext\reg\shellhere,assoc,assoc_sh"
-    :: Refresh PATH so git is available immediately
-    set "PATH=%PATH%;C:\Program Files\Git\cmd"
-    where git >nul 2>&1
-    if %errorlevel% neq 0 (
-        echo   ERROR: Git installation failed.
-        pause
-        exit /b 1
-    )
+    set "PATH=!PATH!;C:\Program Files\Git\cmd"
     echo   [OK] Git installed
 ) else (
     echo   [OK] Git found
 )
 
 :: ----- PYTHON 2.7 -----
-set PYTHON_CMD=
-:: Check if python2.7 is already available
-where python >nul 2>&1
-if %errorlevel% equ 0 (
-    python -c "import sys; exit(0 if sys.version_info[:2]==(2,7) else 1)" >nul 2>&1
-    if %errorlevel% equ 0 (
-        set PYTHON_CMD=python
-    )
-)
-:: Check common Python 2.7 install location
-if not defined PYTHON_CMD (
-    if exist "C:\Python27\python.exe" (
-        set "PYTHON_CMD=C:\Python27\python.exe"
-        set "PATH=%PATH%;C:\Python27;C:\Python27\Scripts"
-    )
-)
-if not defined PYTHON_CMD (
-    echo   Python 2.7 not found. Downloading Python 2.7.18 installer...
+:: Always use C:\Python27\python.exe — ignore any other Python on PATH
+if exist "%PY27%" (
+    echo   [OK] Python 2.7 found at %PY27%
+) else (
+    echo   Python 2.7 not found. Downloading Python 2.7.18...
     echo   This may take a few minutes...
     powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/2.7.18/python-2.7.18.amd64.msi' -OutFile '%DOWNLOADS%\python27.msi' }"
     if not exist "%DOWNLOADS%\python27.msi" (
@@ -170,39 +151,34 @@ if not defined PYTHON_CMD (
         pause
         exit /b 1
     )
-    echo   Installing Python 2.7 silently...
+    echo   Installing Python 2.7 to C:\Python27...
     msiexec /i "%DOWNLOADS%\python27.msi" /qn TARGETDIR=C:\Python27 ADDLOCAL=ALL
-    :: Wait for install to finish
-    timeout /t 10 /nobreak >nul
-    if exist "C:\Python27\python.exe" (
-        set "PYTHON_CMD=C:\Python27\python.exe"
-        set "PATH=%PATH%;C:\Python27;C:\Python27\Scripts"
-        echo   [OK] Python 2.7 installed
-    ) else (
-        echo   ERROR: Python 2.7 installation failed.
-        pause
-        exit /b 1
-    )
-) else (
-    echo   [OK] Python 2.7 found
+    :: Wait for MSI to finish
+    echo   Waiting for installation to complete...
+    :wait_py27
+    timeout /t 3 /nobreak >nul
+    if not exist "%PY27%" goto :wait_py27
+    echo   [OK] Python 2.7 installed
 )
+set "PATH=C:\Python27;C:\Python27\Scripts;!PATH!"
 
-:: ----- PIP (for Python 2.7) -----
-"%PYTHON_CMD%" -m pip --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo   pip not found. Installing pip...
+:: ----- PIP for Python 2.7 -----
+"%PY27%" -m pip --version >nul 2>&1
+if !errorlevel! neq 0 (
+    echo   pip not found for Python 2.7. Installing pip...
     powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/pip/2.7/get-pip.py' -OutFile '%DOWNLOADS%\get-pip.py' }"
-    "%PYTHON_CMD%" "%DOWNLOADS%\get-pip.py"
+    "%PY27%" "%DOWNLOADS%\get-pip.py"
     echo   [OK] pip installed
 ) else (
     echo   [OK] pip found
 )
 
-:: ----- VIRTUALENV -----
-"%PYTHON_CMD%" -m virtualenv --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo   Installing virtualenv...
-    "%PYTHON_CMD%" -m pip install virtualenv
+:: ----- VIRTUALENV for Python 2.7 -----
+:: Use virtualenv 20.21.1 — last version supporting Python 2.7
+"%PY27%" -m virtualenv --version >nul 2>&1
+if !errorlevel! neq 0 (
+    echo   Installing virtualenv for Python 2.7...
+    "%PY27%" -m pip install "virtualenv<20.22"
     echo   [OK] virtualenv installed
 ) else (
     echo   [OK] virtualenv found
@@ -210,7 +186,7 @@ if %errorlevel% neq 0 (
 
 :: ----- NODE.JS -----
 where node >nul 2>&1
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo   Node.js not found. Downloading Node.js installer...
     echo   This may take a few minutes...
     powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://nodejs.org/dist/v18.19.0/node-v18.19.0-x64.msi' -OutFile '%DOWNLOADS%\nodejs.msi' }"
@@ -221,15 +197,15 @@ if %errorlevel% neq 0 (
     )
     echo   Installing Node.js silently...
     msiexec /i "%DOWNLOADS%\nodejs.msi" /qn
-    :: Wait for install to finish
-    timeout /t 10 /nobreak >nul
-    :: Refresh PATH
-    set "PATH=%PATH%;C:\Program Files\nodejs"
+    :: Wait for MSI to finish
+    echo   Waiting for installation to complete...
+    :wait_node
+    timeout /t 3 /nobreak >nul
     where node >nul 2>&1
-    if %errorlevel% neq 0 (
-        echo   ERROR: Node.js installation failed.
-        pause
-        exit /b 1
+    if !errorlevel! neq 0 (
+        set "PATH=!PATH!;C:\Program Files\nodejs"
+        where node >nul 2>&1
+        if !errorlevel! neq 0 goto :wait_node
     )
     echo   [OK] Node.js installed
 ) else (
@@ -254,7 +230,7 @@ if exist "%INSTALL_DIR%" (
     cd /d "%INSTALL_DIR%"
 )
 
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo ERROR: Failed to clone repository. Check your internet connection.
     pause
     exit /b 1
@@ -268,7 +244,7 @@ echo.
 echo [Step 2/9] Setting up Python virtual environment...
 
 if not exist "%INSTALL_DIR%\kalite_env" (
-    "%PYTHON_CMD%" -m virtualenv kalite_env
+    "%PY27%" -m virtualenv kalite_env
 )
 
 :: Activate venv
@@ -283,13 +259,13 @@ echo.
 echo [Step 3/9] Installing Python dependencies...
 
 pip install -r requirements.txt 2>nul
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo   Retrying with --no-deps...
     pip install --no-deps -r requirements.txt
 )
 
 :: Install KA Lite itself
-"%PYTHON_CMD%" setup.py install 2>nul || pip install -e .
+python setup.py install 2>nul || pip install -e .
 
 echo   [OK] Python dependencies installed
 echo.
@@ -300,7 +276,7 @@ echo.
 echo [Step 4/9] Installing Node.js dependencies...
 
 call npm install 2>nul
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo   npm install had issues, continuing...
 )
 
@@ -342,7 +318,7 @@ if exist "%SPARKLINE_DIR%\src\header.js" (
 :: Build JS bundles
 echo   Building JS bundles...
 node build.js --debug
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo ERROR: JS bundle build failed.
     pause
     exit /b 1
@@ -357,7 +333,7 @@ echo [Step 5/9] Initializing KA Lite...
 
 :: Run setup/migrate
 kalite manage setup --noinput 2>nul
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     kalite manage syncdb --noinput
     kalite manage migrate --noinput
 )
@@ -373,7 +349,7 @@ echo   This contains all exercises, topics, and assessment data.
 echo   (Videos are separate and optional)
 
 kalite manage retrievecontentpack download en
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo WARNING: Content pack download failed. You may need internet access.
     echo          You can retry later with: kalite manage retrievecontentpack download en
 )
@@ -397,7 +373,7 @@ echo [Step 8/9] Setting up admin account and facility...
 
 :: Create Django superuser (admin/admin)
 echo   Creating admin account (username: admin, password: admin)...
-"%PYTHON_CMD%" -c "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','kalite.settings'); os.environ['KALITE_HOME']=r'%KALITE_HOME%'; import django; from django.contrib.auth.models import User; User.objects.create_superuser('admin','admin@kalite.local','admin') if not User.objects.filter(username='admin').exists() else None" 2>nul
+python -c "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','kalite.settings'); os.environ['KALITE_HOME']=r'%KALITE_HOME%'; import django; from django.contrib.auth.models import User; User.objects.create_superuser('admin','admin@kalite.local','admin') if not User.objects.filter(username='admin').exists() else None" 2>nul
 
 :: Create facility, group, coach, and sample student via management commands
 kalite manage shell -c "
@@ -445,7 +421,6 @@ kalite start
 set LAN_IP=
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4 Address"') do (
     for /f "tokens=1" %%b in ("%%a") do (
-        :: Skip 127.x.x.x loopback
         echo %%b | findstr /b "127." >nul
         if errorlevel 1 (
             if not defined LAN_IP set "LAN_IP=%%b"
